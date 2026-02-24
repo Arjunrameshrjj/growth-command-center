@@ -1091,7 +1091,8 @@ def _warmup():
         m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(0)
         m2_full_end = m1_start - timedelta(days=1)
         logger.info("WARMUP: pre-fetching all data sources...")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+        # Reduce max_workers to 3 to avoid overloading free-tier servers during startup
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
             # DISCOVER — GA4
             ex.submit(get_discover_metrics, m1_start, m1_end)
             ex.submit(get_discover_metrics, m2_start, m2_end)
