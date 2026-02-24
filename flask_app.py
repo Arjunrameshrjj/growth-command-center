@@ -1122,4 +1122,7 @@ def _warmup():
 
 if __name__ == '__main__':
     threading.Thread(target=_warmup, daemon=True).start()
-    app.run(debug=True, use_reloader=False)
+    # Bind to 0.0.0.0 and use the PORT provided by the environment (Render requirement)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=True, use_reloader=False)
+
