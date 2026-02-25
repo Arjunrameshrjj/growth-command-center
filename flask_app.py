@@ -11,6 +11,9 @@ from google.oauth2 import service_account
 import requests
 import pytz
 import concurrent.futures
+import time
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -91,40 +94,38 @@ def calculate_cumulative(daily_data, key="New Users"):
 
 
 def get_comparison_dates(month_offset=0):
-    """Return (m1_start, m1_end, m2_start, m2_end, base_date) for a given offset."""
-    base_date = datetime.now()
-    if month_offset > 0:
-        base_date = base_date - timedelta(days=30 * month_offset)
-
-    today = datetime.now()
-    month1_start = base_date.replace(day=1)
-
-    if base_date.year == today.year and base_date.month == today.month:
-        month1_end = today
-    else:
-        if base_date.month == 12:
-            next_month = base_date.replace(year=base_date.year + 1, month=1, day=1)
-        else:
-            next_month = base_date.replace(month=base_date.month + 1, day=1)
-        month1_end = next_month - timedelta(days=1)
-
-    # Symmetric MTD calculation:
-    # If today is Feb 21, month1_start=Feb 1, month1_end=Feb 21 (20 days passed).
-    # Then month2_start=Jan 1, month2_end=Jan 21 (exactly same duration).
-    days_passed = (month1_end - month1_start).days
+    """Return (m1_start, m1_end, m2_start, m2_end, base_date) using IST explicitly."""
+    ist = pytz.timezone('Asia/Kolkata')
+    now_ist = datetime.now(ist)
     
-    last_month_last_day = month1_start - timedelta(days=1)
-    month2_start = last_month_last_day.replace(day=1)
-
-    try:
-        month2_end = month2_start + timedelta(days=days_passed)
-        # Cap at end of previous month if current month has more days
-        if month2_end > last_month_last_day:
-            month2_end = last_month_last_day
-    except Exception:
-        month2_end = last_month_last_day
-
-    return month1_start.date(), month1_end.date(), month2_start.date(), month2_end.date(), base_date
+    target_date = now_ist
+    if month_offset > 0:
+        for _ in range(month_offset):
+            target_date = target_date.replace(day=1) - timedelta(days=1)
+    
+    # Month 1 (Current or selected)
+    m1_start = target_date.date().replace(day=1)
+    if target_date.year == now_ist.year and target_date.month == now_ist.month:
+        m1_end = now_ist.date()
+    else:
+        # Last day of that month
+        if target_date.month == 12:
+            next_m = target_date.replace(year=target_date.year + 1, month=1, day=1)
+        else:
+            next_m = target_date.replace(month=target_date.month + 1, day=1)
+        m1_end = (next_m - timedelta(days=1)).date()
+        
+    days_passed = (m1_end - m1_start).days
+    
+    # Month 2 (Previous month comparison)
+    prev_m_last_day = m1_start - timedelta(days=1)
+    m2_start = prev_m_last_day.replace(day=1)
+    
+    m2_end = m2_start + timedelta(days=days_passed)
+    if m2_end > prev_m_last_day:
+        m2_end = prev_m_last_day
+        
+    return m1_start, m1_end, m2_start, m2_end, now_ist
 
 
 def _chart_end_date(end_date_obj, ist):
@@ -324,12 +325,40 @@ def get_customer_stage_ids():
                 
     return list(set(detected)) if detected else ["closedwon", "1884422889", "1955461874"]
 
+# HubSpot Session with retries
+hs_session = requests.Session()
+retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+hs_session.mount('https://', HTTPAdapter(max_retries=retries))
+
+def hubspot_api_request(method, url, **kwargs):
+    """Reliable HubSpot API request with exponential backoff for 429 and 5xx."""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            resp = hs_session.request(method, url, **kwargs)
+            if resp.status_code == 429:
+                # Manual backoff for 429 just in case HTTPAdapter missed it
+                wait = (attempt + 1) * 2
+                logger.warning(f"HubSpot Rate Limit (429). Retrying in {wait}s...")
+                time.sleep(wait)
+                continue
+            if resp.status_code >= 500:
+                wait = attempt + 1
+                logger.warning(f"HubSpot 5xx Error ({resp.status_code}). Retrying in {wait}s...")
+                time.sleep(wait)
+                continue
+            return resp
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise e
+            time.sleep(attempt + 1)
+    return None
+
 def get_hubspot_deals(target_month_start, target_month_end):
     """
     Fetch closed/won HubSpot deals in the date range.
     Returns (count, total_revenue, daily_trend_list).
     """
-    import time
     token = get_hubspot_token()
     if not token:
         logger.warning("HubSpot Token missing - returning 0")
@@ -367,32 +396,30 @@ def get_hubspot_deals(target_month_start, target_month_end):
         if after:
             body['after'] = after
 
-        try:
-            response = requests.post(url, headers=headers, json=body, timeout=25)
-            if response.status_code == 200:
-                data = response.json()
-                results = data.get('results', [])
-                
-                # Filter out EXCLUDED_OWNERS
-                for r in results:
-                    o_name = owner_map.get(str(r['properties'].get('hubspot_owner_id')), "")
-                    if o_name in EXCLUDED_OWNERS:
-                        continue
-                    all_results.append(r)
+        response = hubspot_api_request("POST", url, headers=headers, json=body, timeout=25)
+        if response and response.status_code == 200:
+            data = response.json()
+            results = data.get('results', [])
+            
+            # Filter out EXCLUDED_OWNERS
+            for r in results:
+                o_name = owner_map.get(str(r['properties'].get('hubspot_owner_id', '')), "")
+                if o_name in EXCLUDED_OWNERS:
+                    continue
+                all_results.append(r)
 
-                paging = data.get('paging', {})
-                after = paging.get('next', {}).get('after')
-                if not after:
-                    break
-                
-                page_count += 1
-                time.sleep(0.3) # Prevent rate limits
-            else:
-                logger.error(f"HubSpot API error {response.status_code}: {response.text}")
+            paging = data.get('paging', {})
+            after = paging.get('next', {}).get('after')
+            if not after:
                 break
-        except Exception as e:
-            logger.error(f"HubSpot Paging Error: {e}")
-            break
+            
+            page_count += 1
+            time.sleep(0.4) # Respect secondary limits
+        else:
+            msg = f"HubSpot Fetch failed on page {page_count} with status {response.status_code if response else 'None'}"
+            logger.error(msg)
+            # CRITICAL: Raise exception to avoid partial data cache
+            raise Exception(msg)
 
     logger.info(f"HubSpot Fetch Complete: {len(all_results)} deals kept from {page_count} pages.")
 
@@ -826,14 +853,16 @@ def api_buy():
     m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(offset)
     m2_full_end = m1_start - timedelta(days=1)  # Full previous month end for worm graph
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        f_m1      = executor.submit(get_hubspot_deals, m1_start, m1_end)
-        f_m2      = executor.submit(get_hubspot_deals, m2_start, m2_end)          # MTD → KPI
-        f_m2_full = executor.submit(get_hubspot_deals, m2_start, m2_full_end)     # Full month → graph
-
-    m1_count, m1_val, m1_trend = f_m1.result()
-    m2_count, m2_val, _        = f_m2.result()       # KPI only
-    _, _, m2_trend             = f_m2_full.result()   # Graph only
+    # Fetch HubSpot data sequentially with small delay to avoid rate limits on search
+    try:
+        m1_count, m1_val, m1_trend = get_hubspot_deals(m1_start, m1_end)
+        time.sleep(0.5) 
+        m2_count, m2_val, _ = get_hubspot_deals(m2_start, m2_end)
+        time.sleep(0.5)
+        _, _, m2_trend = get_hubspot_deals(m2_start, m2_full_end)
+    except Exception as e:
+        logger.error(f"API BUY ERROR: {e}")
+        return jsonify({"error": "Failed to fetch HubSpot data", "details": str(e)}), 500
 
     delta_count = m1_count - m2_count
     delta_val = m1_val - m2_val
