@@ -286,18 +286,27 @@ def fetch_deal_pipeline_stages():
         print(f"Error fetching pipelines: {e}")
     return {}
 
+@cache.memoize(timeout=600)
+def get_hubspot_token():
+    try:
+        # Check both secrets and os.environ for token
+        token = secrets.get("hubspot", {}).get("token") or os.environ.get("HUBSPOT_TOKEN")
+        return token.strip() if token else None
+    except Exception:
+        return None
+
 def get_customer_stage_ids():
     """Detect stages that represent 'Admission Confirmed' or 'Closed Won'."""
     all_stages = fetch_deal_pipeline_stages()
     if not all_stages:
-        # Fallback to hardcoded defaults if API fails
-        return ["closedwon", "1884422889", "2208152296", "1955461879", "contractsent"]
+        # EXPANDED FALLBACK for Render stability
+        return ["closedwon", "1884422889", "2208152296", "1955461874", "1955461879", "contractsent"]
     
-    target_labels = ["admission confirmed", "confirmed", "closed won", "won", "customer"]
+    target_labels = ["admission confirmed", "confirmed", "closed won", "won", "customer", "payment confirmed"]
     detected = []
     
-    # Explicitly include known success IDs
-    for s_id in ['closedwon', '1884422889']:
+    # Explicitly include known success IDs from local check
+    for s_id in ['closedwon', '1884422889', '1955461874']:
         if s_id in all_stages:
             detected.append(s_id)
             
@@ -313,19 +322,20 @@ def get_customer_stage_ids():
             if any(t in label for t in target_labels):
                 detected.append(s_id)
                 
-    return list(set(detected)) if detected else ["closedwon", "1884422889"]
+    return list(set(detected)) if detected else ["closedwon", "1884422889", "1955461874"]
 
 def get_hubspot_deals(target_month_start, target_month_end):
     """
     Fetch closed/won HubSpot deals in the date range.
-    Uses dynamic stage detection from ff.txt logic.
     Returns (count, total_revenue, daily_trend_list).
     """
+    import time
     token = get_hubspot_token()
     if not token:
+        logger.warning("HubSpot Token missing - returning 0")
         return 0, 0, []
 
-    # Dynamically detect customer stages
+    # Get stages and owners
     customer_stages = get_customer_stage_ids()
     owner_map = fetch_hubspot_owners()
     
@@ -333,17 +343,15 @@ def get_hubspot_deals(target_month_start, target_month_end):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
     ist = pytz.timezone('Asia/Kolkata')
-    # Use helper to get proper timestamps (v2 logic)
-    dt_start = datetime.combine(target_month_start, datetime.min.time())
-    dt_start_ist = ist.localize(dt_start)
+    dt_start_ist = ist.localize(datetime.combine(target_month_start, datetime.min.time()))
     start_ts = int(dt_start_ist.astimezone(pytz.UTC).timestamp() * 1000)
 
-    dt_end = datetime.combine(target_month_end, datetime.max.time())
-    dt_end_ist = ist.localize(dt_end)
+    dt_end_ist = ist.localize(datetime.combine(target_month_end, datetime.max.time()))
     end_ts = int(dt_end_ist.astimezone(pytz.UTC).timestamp() * 1000)
 
     all_results = []
     after = None
+    page_count = 1
 
     while True:
         body = {
@@ -360,15 +368,14 @@ def get_hubspot_deals(target_month_start, target_month_end):
             body['after'] = after
 
         try:
-            response = requests.post(url, headers=headers, json=body, timeout=20)
+            response = requests.post(url, headers=headers, json=body, timeout=25)
             if response.status_code == 200:
                 data = response.json()
                 results = data.get('results', [])
                 
-                # Filter out EXCLUDED_OWNERS here
+                # Filter out EXCLUDED_OWNERS
                 for r in results:
-                    o_id = r['properties'].get('hubspot_owner_id')
-                    o_name = owner_map.get(o_id, "")
+                    o_name = owner_map.get(str(r['properties'].get('hubspot_owner_id')), "")
                     if o_name in EXCLUDED_OWNERS:
                         continue
                     all_results.append(r)
@@ -377,10 +384,19 @@ def get_hubspot_deals(target_month_start, target_month_end):
                 after = paging.get('next', {}).get('after')
                 if not after:
                     break
+                
+                page_count += 1
+                time.sleep(0.3) # Prevent rate limits
             else:
+                logger.error(f"HubSpot API error {response.status_code}: {response.text}")
                 break
-        except Exception:
+        except Exception as e:
+            logger.error(f"HubSpot Paging Error: {e}")
             break
+
+    logger.info(f"HubSpot Fetch Complete: {len(all_results)} deals kept from {page_count} pages.")
+
+
 
     # Robust summing logic
     total_val = 0
