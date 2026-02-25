@@ -23,7 +23,7 @@ cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache'})
 PROPERTY_ID = "281698779"
 KEY_PATH = "ga4-streamlit-connect-21d2d2cc35d6.json"
 SECRETS_PATH = ".streamlit/secrets.toml"
-CONTENT_CALENDAR_URL = "https://script.google.com/macros/s/AKfycbwkHVKmSn9MjPUD3xGIYKS8YEyyNlu8qfYq0-dhpey8XIoGpnm3IJroUiAbyPVEdx-T0w/exec"
+CONTENT_CALENDAR_URL = "https://script.google.com/macros/s/AKfycbxShw7pKMN19c7Ou4qQb6BY_cKxNlOJAnpA2gbtngXhNig0VrU39cQ5j7e_mfEkbJqJbg/exec"
 
 # Load Secrets
 try:
@@ -991,8 +991,8 @@ def api_content_calendar():
 
     rows_this_month = []
     for row in all_rows:
-        # Skip rows with no useful data
-        if not any([row.get("Content Topic"), row.get("Status"), row.get("Scheduled Date")]):
+        # Skip rows with no useful data at all
+        if not any([row.get("Content Topic"), row.get("Status"), row.get("Scheduled Date"), row.get("Owner/TUTOR")]):
             continue
 
         # Prefer Published Date for performance tracking, fall back to Scheduled Date
@@ -1002,8 +1002,12 @@ def api_content_calendar():
             try:
                 # Apps Script returns JS Date strings or direct date strings from sheet
                 date_val_clean = date_val.split('(')[0].strip()
-                # Use pandas for robust parsing with dayfirst=True for Indian formats
-                parsed_date = pd.to_datetime(date_val_clean, errors='coerce', dayfirst=True)
+                # Handle informal formats like 'FEB 8, SUN' → strip trailing day-of-week
+                # e.g. 'FEB 8, SUN' → 'FEB 8' so pandas can parse it
+                import re as _re
+                date_val_clean = _re.sub(r',?\s*(MON|TUE|WED|THRS|THU|FRI|SAT|SUN)\s*$', '', date_val_clean, flags=_re.IGNORECASE).strip()
+                # Use dayfirst=False so ISO dates like '2026-02-01' are NOT swapped to Jan 2
+                parsed_date = pd.to_datetime(date_val_clean, errors='coerce', dayfirst=False)
                 if pd.isna(parsed_date):
                     parsed_date = None
                 else:
@@ -1031,7 +1035,7 @@ def api_content_calendar():
             funnel = "Other"
 
         rows_this_month.append({
-            "sheet":       row.get("Sheet", ""),
+            "sheet":       row.get("Sheet", "").strip(),  # strip spaces e.g. 'FLUENCY '
             "topic":       row.get("Content Topic", ""),
             "type":        row.get("Content Type", ""),
             "owner":       row.get("Owner/TUTOR", ""),
@@ -1091,8 +1095,7 @@ def _warmup():
         m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(0)
         m2_full_end = m1_start - timedelta(days=1)
         logger.info("WARMUP: pre-fetching all data sources...")
-        # Reduce max_workers to 3 to avoid overloading free-tier servers during startup
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
             # DISCOVER — GA4
             ex.submit(get_discover_metrics, m1_start, m1_end)
             ex.submit(get_discover_metrics, m2_start, m2_end)
@@ -1123,7 +1126,5 @@ def _warmup():
 
 if __name__ == '__main__':
     threading.Thread(target=_warmup, daemon=True).start()
-    # Bind to 0.0.0.0 and use the PORT provided by the environment (Render requirement)
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=True, use_reloader=False)
+    app.run(debug=True, use_reloader=False)
 
