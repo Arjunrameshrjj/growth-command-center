@@ -20,6 +20,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.jinja_env.auto_reload = True
 cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache'})
 
 # ---------------- CONFIGURATION ----------------
@@ -93,39 +95,136 @@ def calculate_cumulative(daily_data, key="New Users"):
     return df_c[['Date', 'Cumulative']].to_dict('records')
 
 
-def get_comparison_dates(month_offset=0):
-    """Return (m1_start, m1_end, m2_start, m2_end, base_date) using IST explicitly."""
+def get_comparison_dates(offset=0, period='monthly', c_start1=None, c_end1=None, c_start2=None, c_end2=None):
+    """Return (m1_start, m1_end, m2_start, m2_end, base_date) using IST explicitly.
+    period can be 'daily', 'weekly', 'monthly', 'quarterly', 'custom', 'all'."""
     ist = pytz.timezone('Asia/Kolkata')
     now_ist = datetime.now(ist)
+    today = now_ist.date()
     
-    target_date = now_ist
-    if month_offset > 0:
-        for _ in range(month_offset):
-            target_date = target_date.replace(day=1) - timedelta(days=1)
-    
-    # Month 1 (Current or selected)
-    m1_start = target_date.date().replace(day=1)
-    if target_date.year == now_ist.year and target_date.month == now_ist.month:
-        m1_end = now_ist.date()
-    else:
-        # Last day of that month
-        if target_date.month == 12:
-            next_m = target_date.replace(year=target_date.year + 1, month=1, day=1)
+    if period == 'daily':
+        target_date = today - timedelta(days=offset)
+        m1_start = target_date
+        m1_end = target_date
+        m2_start = target_date - timedelta(days=1)
+        m2_end = m2_start
+        return m1_start, m1_end, m2_start, m2_end, now_ist
+        
+    elif period == 'weekly':
+        # Monday = 0, Sunday = 6
+        day_of_week = today.weekday()
+        this_monday = today - timedelta(days=day_of_week)
+        # Shift weeks backwards by offset
+        target_monday = this_monday - timedelta(weeks=offset)
+        
+        m1_start = target_monday
+        # if this is the current week, end today, else end on Sunday
+        if offset == 0:
+            m1_end = today
+            days_passed = day_of_week
         else:
-            next_m = target_date.replace(month=target_date.month + 1, day=1)
-        m1_end = (next_m - timedelta(days=1)).date()
+            m1_end = target_monday + timedelta(days=6)
+            days_passed = 6
+            
+        m2_start = target_monday - timedelta(weeks=1)
+        m2_end = m2_start + timedelta(days=days_passed)
+        return m1_start, m1_end, m2_start, m2_end, now_ist
         
-    days_passed = (m1_end - m1_start).days
-    
-    # Month 2 (Previous month comparison)
-    prev_m_last_day = m1_start - timedelta(days=1)
-    m2_start = prev_m_last_day.replace(day=1)
-    
-    m2_end = m2_start + timedelta(days=days_passed)
-    if m2_end > prev_m_last_day:
-        m2_end = prev_m_last_day
+    elif period == 'quarterly':
+        target_date = now_ist.date()
+        # Find current quarter start month (1, 4, 7, 10)
+        curr_q_start_month = 3 * ((target_date.month - 1) // 3) + 1
+        curr_q_start_date = target_date.replace(month=curr_q_start_month, day=1)
         
-    return m1_start, m1_end, m2_start, m2_end, now_ist
+        # Apply offset by going back 3 months
+        for _ in range(offset):
+            # Go to the last day of the previous quarter
+            curr_q_start_date = (curr_q_start_date - timedelta(days=1)).replace(day=1)
+            # Find the new quarter start
+            curr_q_start_month = 3 * ((curr_q_start_date.month - 1) // 3) + 1
+            curr_q_start_date = curr_q_start_date.replace(month=curr_q_start_month, day=1)
+            
+        m1_start = curr_q_start_date
+        
+        # End of the targeted quarter
+        end_month = m1_start.month + 2
+        if end_month > 12:
+            q_end_date = m1_start.replace(year=m1_start.year + 1, month=end_month - 12, day=1)
+            q_end_date = (q_end_date.replace(month=q_end_date.month % 12 + 1) - timedelta(days=1))
+        else:
+            q_end_date = m1_start.replace(month=end_month)
+            if q_end_date.month == 12:
+                q_end_date = q_end_date.replace(year=q_end_date.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                q_end_date = q_end_date.replace(month=q_end_date.month + 1, day=1) - timedelta(days=1)
+
+        # If it's the current ongoing quarter, end at today
+        if m1_start.year == today.year and curr_q_start_month <= today.month <= curr_q_start_month + 2 and offset == 0:
+            m1_end = today
+        else:
+            m1_end = q_end_date
+            
+        days_passed = (m1_end - m1_start).days
+        
+        # Month 2 (Previous quarter comparison)
+        prev_q_last_day = m1_start - timedelta(days=1)
+        prev_q_start_month = 3 * ((prev_q_last_day.month - 1) // 3) + 1
+        m2_start = prev_q_last_day.replace(month=prev_q_start_month, day=1)
+        
+        m2_end = m2_start + timedelta(days=days_passed)
+        if m2_end > prev_q_last_day:
+            m2_end = prev_q_last_day
+
+        return m1_start, m1_end, m2_start, m2_end, now_ist
+        
+    elif period == 'custom':
+        # Default to today if parsing fails
+        try:
+            m1_start = datetime.strptime(c_start1, '%Y-%m-%d').date() if c_start1 else today
+            m1_end = datetime.strptime(c_end1, '%Y-%m-%d').date() if c_end1 else today
+            m2_start = datetime.strptime(c_start2, '%Y-%m-%d').date() if c_start2 else m1_start - timedelta(days=1)
+            m2_end = datetime.strptime(c_end2, '%Y-%m-%d').date() if c_end2 else m2_start
+        except Exception:
+            m1_start = m1_end = m2_start = m2_end = today
+            
+        return m1_start, m1_end, m2_start, m2_end, now_ist
+            
+    elif period == 'all':
+        m1_start = datetime(2020, 1, 1).date()
+        m1_end = today
+        m2_start = m1_start - timedelta(days=1) # dummy
+        m2_end = m2_start # dummy
+        return m1_start, m1_end, m2_start, m2_end, now_ist
+        
+    else: # monthly
+        target_date = now_ist
+        if offset > 0:
+            for _ in range(offset):
+                target_date = target_date.replace(day=1) - timedelta(days=1)
+        
+        # Month 1 (Current or selected)
+        m1_start = target_date.date().replace(day=1)
+        if target_date.year == now_ist.year and target_date.month == now_ist.month:
+            m1_end = now_ist.date()
+        else:
+            # Last day of that month
+            if target_date.month == 12:
+                next_m = target_date.replace(year=target_date.year + 1, month=1, day=1)
+            else:
+                next_m = target_date.replace(month=target_date.month + 1, day=1)
+            m1_end = (next_m - timedelta(days=1)).date()
+            
+        days_passed = (m1_end - m1_start).days
+        
+        # Month 2 (Previous month comparison)
+        prev_m_last_day = m1_start - timedelta(days=1)
+        m2_start = prev_m_last_day.replace(day=1)
+        
+        m2_end = m2_start + timedelta(days=days_passed)
+        if m2_end > prev_m_last_day:
+            m2_end = prev_m_last_day
+            
+        return m1_start, m1_end, m2_start, m2_end, now_ist
 
 
 def _chart_end_date(end_date_obj, ist):
@@ -464,6 +563,111 @@ def get_hubspot_deals(target_month_start, target_month_end):
 
     return len(all_results), total_val, sorted_daily
 
+def get_hubspot_contacts(target_month_start, target_month_end, lead_status="Trial Phase"):
+    """
+    Fetch HubSpot contacts with a specific lead status (Trial Phase).
+    Returns (count, course_breakdown_dict, daily_trend_list).
+    """
+    token = get_hubspot_token()
+    if not token:
+        logger.warning("HubSpot Token missing - returning 0 for contacts")
+        return 0, {}, []
+
+    url = "https://api.hubapi.com/crm/v3/objects/contacts/search"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    # Define course properties to check (matching ff.txt logic)
+    course_props = [
+        "course", "program", "product", "service", "offering",
+        "course_name", "program_name", "product_name",
+        "enquired_course", "interested_course", "course_interested",
+        "program_of_interest", "course_of_interest", "product_of_interest"
+    ]
+    all_props = ["hs_lead_status", "hubspot_owner_id", "createdate"] + course_props
+    
+    ist = pytz.timezone('Asia/Kolkata')
+    dt_start_ist = ist.localize(datetime.combine(target_month_start, datetime.min.time()))
+    start_ts = int(dt_start_ist.astimezone(pytz.UTC).timestamp() * 1000)
+
+    dt_end_ist = ist.localize(datetime.combine(target_month_end, datetime.max.time()))
+    end_ts = int(dt_end_ist.astimezone(pytz.UTC).timestamp() * 1000)
+
+    all_contacts = []
+    after = None
+    page_count = 1
+
+    while True:
+        body = {
+            "filterGroups": [{
+                "filters": [
+                    {"propertyName": "hs_lead_status", "operator": "EQ", "value": lead_status},
+                    {"propertyName": "createdate", "operator": "BETWEEN", "value": start_ts, "highValue": end_ts}
+                ]
+            }],
+            "properties": all_props,
+            "limit": 100
+        }
+        if after:
+            body['after'] = after
+
+        response = hubspot_api_request("POST", url, headers=headers, json=body, timeout=25)
+        if response and response.status_code == 200:
+            data = response.json()
+            results = data.get('results', [])
+            all_contacts.extend(results)
+
+            paging = data.get('paging', {})
+            after = paging.get('next', {}).get('after')
+            if not after:
+                break
+            
+            page_count += 1
+            time.sleep(0.4)
+        else:
+            msg = f"HubSpot Contacts Fetch failed on page {page_count}"
+            logger.error(msg)
+            raise Exception(msg)
+
+    # Process results
+    course_counts = {}
+    daily_trend = {}
+    
+    for c in all_contacts:
+        props = c.get('properties', {})
+        
+        # 1. Daily trend
+        create_str = props.get('createdate')
+        if create_str:
+            try:
+                # HubSpot search returns timestamps for createdate
+                if create_str.isdigit():
+                    dt = datetime.fromtimestamp(int(create_str)/1000, tz=pytz.UTC)
+                else:
+                    dt = datetime.fromisoformat(create_str.replace('Z', '+00:00'))
+                date_str = dt.astimezone(ist).strftime('%Y-%m-%d')
+                daily_trend[date_str] = daily_trend.get(date_str, 0) + 1
+            except:
+                pass
+
+        # 2. Course breakdown
+        course_name = "Unknown Course"
+        for field in course_props:
+            val = props.get(field)
+            if val and str(val).strip():
+                course_name = str(val).strip()
+                break
+        course_counts[course_name] = course_counts.get(course_name, 0) + 1
+
+    # Format trend for worm graph
+    sorted_trend = []
+    curr = target_month_start
+    while curr <= target_month_end:
+        ds = curr.strftime('%Y-%m-%d')
+        sorted_trend.append({"Date": ds, "Admissions": daily_trend.get(ds, 0)})
+        curr += timedelta(days=1)
+
+    return len(all_contacts), course_counts, sorted_trend
+
 
 # ---------------- KAJABI ----------------
 KAJABI_CLIENT_ID = secrets.get("kajabi", {}).get("client_id")
@@ -792,17 +996,71 @@ def get_renew_sheet_data(target_month_start, target_month_end):
         return 0, 0, pd.DataFrame()
 
 
+# ---------------- GOOGLE SHEETS (ADVOCATE) ----------------
+ADVOCATE_SHEET_URL = "https://script.google.com/macros/s/AKfycbyz-jowsvuW712EK6JFJu3OIR0PEAPWOv3cf-_RoMELmUtUzYTRNaY33qL62s4bBAo_cQ/exec"
+
+
+@cache.memoize(timeout=600)
+def get_advocate_sheet_data():
+    """Fetch advocate data from Google Sheets. Returns list of dicts."""
+    if not ADVOCATE_SHEET_URL or "script.google.com" not in ADVOCATE_SHEET_URL:
+        return []
+    try:
+        response = requests.get(ADVOCATE_SHEET_URL, timeout=30)
+        data = response.json()
+        if isinstance(data, dict) and 'error' in data:
+            logger.error(f"Advocate sheet error: {data['error']}")
+            return []
+        return data
+    except Exception as e:
+        logger.error(f"Advocate sheet fetch error: {e}")
+        return []
+
+
 # ---------------- FLASK ROUTES ----------------
 @app.route('/')
 def index():
     offset = request.args.get('offset', 0, type=int)
-    m1_start, m1_end, m2_start, m2_end, date_obj = get_comparison_dates(offset)
+    period = request.args.get('period', 'monthly')
+    c_start1 = request.args.get('c_start1')
+    c_end1 = request.args.get('c_end1')
+    c_start2 = request.args.get('c_start2')
+    c_end2 = request.args.get('c_end2')
+    m1_start, m1_end, m2_start, m2_end, date_obj = get_comparison_dates(offset, period, c_start1, c_end1, c_start2, c_end2)
+    
+    if period == 'all':
+        main_label = "ALL TIME"
+        r1_label = f"{m1_start.strftime('%b %Y')} - {m1_end.strftime('%b %Y')}"
+        r2_label = "N/A"
+    elif period == 'quarterly':
+        q_num = (m1_start.month - 1) // 3 + 1
+        main_label = f"Q{q_num} {m1_start.year}"
+        r1_label = f"{m1_start.strftime('%b %d')} - {m1_end.strftime('%b %d')}"
+        r2_label = f"{m2_start.strftime('%b %d')} - {m2_end.strftime('%b %d')}"
+    elif period == 'custom':
+        main_label = "CUSTOM RANGE"
+        r1_label = f"{m1_start.strftime('%b %d, %Y')} - {m1_end.strftime('%b %d, %Y')}"
+        r2_label = f"{m2_start.strftime('%b %d, %Y')} - {m2_end.strftime('%b %d, %Y')}"
+    elif period == 'weekly':
+        main_label = f"Week of {m1_start.strftime('%b %d')}"
+        r1_label = f"{m1_start.strftime('%b %d')} - {m1_end.strftime('%b %d')}"
+        r2_label = f"{m2_start.strftime('%b %d')} - {m2_end.strftime('%b %d')}"
+    elif period == 'daily':
+        main_label = m1_start.strftime('%B %d, %Y')
+        r1_label = "Today" if offset == 0 else m1_start.strftime('%b %d')
+        r2_label = m2_start.strftime('%b %d')
+    else:
+        main_label = date_obj.strftime('%B %Y')
+        r1_label = f"{m1_start.strftime('%b %d')} - {m1_end.strftime('%b %d')}"
+        r2_label = f"{m2_start.strftime('%b %d')} - {m2_end.strftime('%b %d')}"
+
     return render_template(
         'index.html',
         active_users='—',
-        current_month=date_obj.strftime('%B %Y'),
-        mtd_range=f"{m1_start.strftime('%b %d')} - {m1_end.strftime('%b %d')}",
-        prev_range=f"{m2_start.strftime('%b %d')} - {m2_end.strftime('%b %d')}",
+        current_period=period,
+        current_month=main_label,
+        mtd_range=r1_label,
+        prev_range=r2_label,
         month_offset=offset
     )
 
@@ -817,7 +1075,12 @@ def api_active_users():
 @cache.cached(timeout=300, query_string=True)
 def api_discover():
     offset = request.args.get('offset', 0, type=int)
-    m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(offset)
+    period = request.args.get('period', 'monthly')
+    c_start1 = request.args.get('c_start1')
+    c_end1 = request.args.get('c_end1')
+    c_start2 = request.args.get('c_start2')
+    c_end2 = request.args.get('c_end2')
+    m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(offset, period, c_start1, c_end1, c_start2, c_end2)
     m2_full_end = m1_start - timedelta(days=1)  # Full previous month for worm graph
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -846,11 +1109,60 @@ def api_discover():
     })
 
 
+@app.route('/api/try')
+@cache.cached(timeout=300, query_string=True)
+def api_try():
+    offset = request.args.get('offset', 0, type=int)
+    period = request.args.get('period', 'monthly')
+    c_start1 = request.args.get('c_start1')
+    c_end1 = request.args.get('c_end1')
+    c_start2 = request.args.get('c_start2')
+    c_end2 = request.args.get('c_end2')
+    m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(offset, period, c_start1, c_end1, c_start2, c_end2)
+    m2_full_end = m1_start - timedelta(days=1)
+
+    try:
+        # Current M1
+        m1_count, m1_courses, m1_trend = get_hubspot_contacts(m1_start, m1_end, "Trial Phase")
+        time.sleep(0.5)
+        # Previous M2 MTD
+        m2_count, _, _ = get_hubspot_contacts(m2_start, m2_end, "Trial Phase")
+        time.sleep(0.5)
+        # Previous M2 Full for worm graph
+        _, _, m2_trend = get_hubspot_contacts(m2_start, m2_full_end, "Trial Phase")
+    except Exception as e:
+        logger.error(f"API TRY ERROR: {e}")
+        return jsonify({"error": "Failed to fetch HubSpot contacts", "details": str(e)}), 500
+
+    delta = m1_count - m2_count
+    pct = (delta / m2_count * 100) if m2_count > 0 else 0
+
+    # Sort course breakdown for UI
+    sorted_courses = sorted(m1_courses.items(), key=lambda x: x[1], reverse=True)
+    course_list = [{"name": n, "count": c} for n, c in sorted_courses]
+
+    return jsonify({
+        "m1_val": m1_count,
+        "m2_val": m2_count,
+        "delta": f"{delta:+}",
+        "delta_pct": round(pct, 1),
+        "course_breakdown": course_list,
+        "worm_m1": calculate_cumulative(m1_trend, "Admissions"),
+        "worm_m2": calculate_cumulative(m2_trend, "Admissions"),
+        "trend": m1_trend
+    })
+
+
 @app.route('/api/buy')
 @cache.cached(timeout=300, query_string=True)
 def api_buy():
     offset = request.args.get('offset', 0, type=int)
-    m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(offset)
+    period = request.args.get('period', 'monthly')
+    c_start1 = request.args.get('c_start1')
+    c_end1 = request.args.get('c_end1')
+    c_start2 = request.args.get('c_start2')
+    c_end2 = request.args.get('c_end2')
+    m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(offset, period, c_start1, c_end1, c_start2, c_end2)
     m2_full_end = m1_start - timedelta(days=1)  # Full previous month end for worm graph
 
     # Fetch HubSpot data sequentially with small delay to avoid rate limits on search
@@ -884,7 +1196,12 @@ def api_buy():
 @cache.cached(timeout=300, query_string=True)
 def api_use():
     offset = request.args.get('offset', 0, type=int)
-    m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(offset)
+    period = request.args.get('period', 'monthly')
+    c_start1 = request.args.get('c_start1')
+    c_end1 = request.args.get('c_end1')
+    c_start2 = request.args.get('c_start2')
+    c_end2 = request.args.get('c_end2')
+    m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(offset, period, c_start1, c_end1, c_start2, c_end2)
     m2_full_end = m1_start - timedelta(days=1)  # Full previous month end for worm graph
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -943,7 +1260,12 @@ def api_use():
 @cache.cached(timeout=300, query_string=True)
 def api_renew():
     offset = request.args.get('offset', 0, type=int)
-    m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(offset)
+    period = request.args.get('period', 'monthly')
+    c_start1 = request.args.get('c_start1')
+    c_end1 = request.args.get('c_end1')
+    c_start2 = request.args.get('c_start2')
+    c_end2 = request.args.get('c_end2')
+    m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(offset, period, c_start1, c_end1, c_start2, c_end2)
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         f_m1 = executor.submit(get_renew_sheet_data, m1_start, m1_end)
@@ -995,6 +1317,224 @@ def api_renew():
     })
 
 
+def _parse_advocate_passout(row):
+    """Parse PASS OUT MONTH + PASS OUT DATE into a (year, month_num, date_obj, month_label) tuple."""
+    import re, calendar
+    month_str = (row.get("PASS OUT MONTH") or "").strip().upper()
+    date_str = (row.get("PASS OUT DATE") or "").strip()
+
+    # Map month name → number
+    month_map = {m.upper(): i for i, m in enumerate(calendar.month_name) if m}
+    # Also handle abbreviations
+    month_map.update({m.upper(): i for i, m in enumerate(calendar.month_abbr) if m})
+
+    month_num = None
+    year = None
+
+    # Try to extract month from PASS OUT MONTH (e.g. "February", "JANUARY", "January 2026", "Feb 2026")
+    if month_str:
+        parts = month_str.split()
+        for p in parts:
+            if p in month_map:
+                month_num = month_map[p]
+            elif p.isdigit() and len(p) == 4:
+                year = int(p)
+
+    # Try to parse date for a more precise date and to extract year if missing
+    date_obj = None
+    if date_str:
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%b %d", "%d %b", "%d %b %Y"):
+            try:
+                date_obj = datetime.strptime(date_str, fmt)
+                if date_obj.year < 2000:
+                    # Format didn't include year; we'll fill it from context
+                    date_obj = None
+                else:
+                    if not year:
+                        year = date_obj.year
+                    if not month_num:
+                        month_num = date_obj.month
+                break
+            except ValueError:
+                continue
+        # Also try raw date patterns like "Feb 7", "14/02/2026", "Jan 18"
+        if not date_obj and date_str:
+            match = re.search(r'(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})', date_str)
+            if match:
+                d, m, y = int(match.group(1)), int(match.group(2)), int(match.group(3))
+                if y < 100: y += 2000
+                try:
+                    date_obj = datetime(y, m, d)
+                    if not year: year = y
+                    if not month_num: month_num = m
+                except ValueError:
+                    try:
+                        date_obj = datetime(y, d, m)  # Try swapped day/month
+                        if not year: year = y
+                        if not month_num: month_num = m
+                    except ValueError:
+                        pass
+
+    # Default year to current year if still missing
+    if not year:
+        year = datetime.now().year
+
+    # Build month label
+    if month_num:
+        month_label = f"{calendar.month_name[month_num].upper()} {year}"
+    else:
+        month_label = "UNKNOWN"
+
+    return year, month_num, date_obj, month_label
+
+
+@app.route('/api/advocate')
+@cache.cached(timeout=300, query_string=True)
+def api_advocate():
+    import calendar
+    offset = request.args.get('offset', 0, type=int)
+    period = request.args.get('period', 'monthly')
+    c_start1 = request.args.get('c_start1')
+    c_end1 = request.args.get('c_end1')
+    c_start2 = request.args.get('c_start2')
+    c_end2 = request.args.get('c_end2')
+    m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(offset, period, c_start1, c_end1, c_start2, c_end2)
+
+    all_rows = get_advocate_sheet_data()
+
+    # Enrich every row with parsed pass-out info
+    enriched = []
+    for r in all_rows:
+        yr, mn, dt, label = _parse_advocate_passout(r)
+        r['_passout_year'] = yr
+        r['_passout_month_num'] = mn
+        r['_passout_date_obj'] = dt.isoformat() if dt else None
+        r['_passout_label'] = label
+        r['_sort_key'] = dt.isoformat() if dt else f"{yr}-{mn or 0:02d}-00"
+        enriched.append(r)
+
+    target_year = m1_start.year
+    target_month = m1_start.month
+    prev_year = m2_start.year
+    prev_month = m2_start.month
+
+    if period == 'all':
+        rows_this_month = enriched
+        rows_prev_month = []
+    else:
+        m1_s = m1_start.strftime('%Y-%m-%d')
+        m1_e = m1_end.strftime('%Y-%m-%d')
+        m2_s = m2_start.strftime('%Y-%m-%d')
+        m2_e = m2_end.strftime('%Y-%m-%d')
+        
+        # We need to elegantly handle rows that have NO exact date, only a Month/Year
+        # BUT since user specifically asked for "this date MTD", we will stick to exact date matching.
+        rows_this_month = [r for r in enriched if r['_passout_date_obj'] and m1_s <= r['_passout_date_obj'][:10] <= m1_e]
+        rows_prev_month = [r for r in enriched if r['_passout_date_obj'] and m2_s <= r['_passout_date_obj'][:10] <= m2_e]
+
+    # --- KPIs for this month ---
+    total = len(rows_this_month)
+    prev_total = len(rows_prev_month)
+    branch_counts = {}
+    advocacy_levels = {}
+    testimonials_given = 0
+    testimonials_not = 0
+    course_counts = {}
+
+    for r in rows_this_month:
+        branch = r.get("Branch", "Unknown")
+        branch_counts[branch] = branch_counts.get(branch, 0) + 1
+
+        level = (r.get("ADVOCACY LEVEL") or "").strip()
+        if level:
+            advocacy_levels[level] = advocacy_levels.get(level, 0) + 1
+
+        testimonial = (r.get("TESTIMONIALS (GIVEN/NOT)") or "").strip().upper()
+        if "GIVEN" in testimonial and "NOT" not in testimonial:
+            testimonials_given += 1
+        elif testimonial:
+            testimonials_not += 1
+
+        course = (r.get("COURSE") or "").strip()
+        if course:
+            course_counts[course] = course_counts.get(course, 0) + 1
+
+    # --- KPIs for previous month ---
+    prev_branch_counts = {}
+    prev_advocacy_levels = {}
+    prev_testimonials_given = 0
+    prev_testimonials_not = 0
+    prev_course_counts = {}
+
+    for r in rows_prev_month:
+        branch = r.get("Branch", "Unknown")
+        prev_branch_counts[branch] = prev_branch_counts.get(branch, 0) + 1
+
+        level = (r.get("ADVOCACY LEVEL") or "").strip()
+        if level:
+            prev_advocacy_levels[level] = prev_advocacy_levels.get(level, 0) + 1
+
+        testimonial = (r.get("TESTIMONIALS (GIVEN/NOT)") or "").strip().upper()
+        if "GIVEN" in testimonial and "NOT" not in testimonial:
+            prev_testimonials_given += 1
+        elif testimonial:
+            prev_testimonials_not += 1
+
+        course = (r.get("COURSE") or "").strip()
+        if course:
+            prev_course_counts[course] = prev_course_counts.get(course, 0) + 1
+
+    sorted_levels = sorted(advocacy_levels.items(), key=lambda x: x[1], reverse=True)
+    sorted_courses = sorted(course_counts.items(), key=lambda x: x[1], reverse=True)
+
+    # Sort rows by date descending within this month
+    rows_this_month.sort(key=lambda r: r['_sort_key'], reverse=True)
+
+    # Build month_groups for ALL months (for the full grouped view)
+    month_groups_map = {}
+    for r in enriched:
+        label = r['_passout_label']
+        if label not in month_groups_map:
+            month_groups_map[label] = {"month": label, "year": r['_passout_year'], "month_num": r['_passout_month_num'] or 0, "rows": []}
+        # Strip internal fields for clean JSON
+        clean = {k: v for k, v in r.items() if not k.startswith('_')}
+        clean['_sort_key'] = r['_sort_key']
+        clean['_passout_date_obj'] = r['_passout_date_obj']
+        month_groups_map[label]["rows"].append(clean)
+
+    # Sort groups by year desc, month desc
+    month_groups = sorted(month_groups_map.values(), key=lambda g: (g['year'], g['month_num']), reverse=True)
+    for g in month_groups:
+        g['rows'].sort(key=lambda r: r.get('_sort_key', ''), reverse=True)
+        g['count'] = len(g['rows'])
+
+    # Clean rows for this month too
+    clean_rows = []
+    for r in rows_this_month:
+        clean = {k: v for k, v in r.items() if not k.startswith('_')}
+        clean['_sort_key'] = r['_sort_key']
+        clean['_passout_date_obj'] = r['_passout_date_obj']
+        clean_rows.append(clean)
+
+    return jsonify({
+        "total": total,
+        "prev_total": prev_total,
+        "branch_counts": [{"name": k, "count": v} for k, v in sorted(branch_counts.items())],
+        "prev_branch_counts": [{"name": k, "count": v} for k, v in sorted(prev_branch_counts.items())],
+        "advocacy_levels": [{"level": k, "count": v} for k, v in sorted_levels],
+        "testimonials_given": testimonials_given,
+        "testimonials_not": testimonials_not,
+        "prev_testimonials_given": prev_testimonials_given,
+        "prev_testimonials_not": prev_testimonials_not,
+        "course_breakdown": [{"name": k, "count": v} for k, v in sorted_courses],
+        "rows": clean_rows,
+        "all_rows": [r2 for g in month_groups for r2 in g['rows']],
+        "month_groups": month_groups,
+        "target_month_label": f"{calendar.month_name[target_month].upper()} {target_year}",
+        "prev_month_label": f"{calendar.month_name[prev_month].upper()} {prev_year}",
+    })
+
+
 @app.route('/api/cache-clear', methods=['POST'])
 def api_cache_clear():
     cache.clear()
@@ -1020,8 +1560,13 @@ def get_content_calendar():
 def api_content_calendar():
     """Return content calendar KPIs filtered to the requested month."""
     offset = request.args.get('offset', 0, type=int)
+    period = request.args.get('period', 'monthly')
+    c_start1 = request.args.get('c_start1')
+    c_end1 = request.args.get('c_end1')
+    c_start2 = request.args.get('c_start2')
+    c_end2 = request.args.get('c_end2')
     ist = pytz.timezone("Asia/Kolkata")
-    m1_start, m1_end, _, _, _ = get_comparison_dates(offset)
+    m1_start, m1_end, m2_start, m2_end, _ = get_comparison_dates(offset, period, c_start1, c_end1, c_start2, c_end2)
 
     all_rows = get_content_calendar()
 
@@ -1150,6 +1695,10 @@ def _warmup():
             # BUY — HubSpot
             ex.submit(get_hubspot_deals, m1_start, m1_end)
             ex.submit(get_hubspot_deals, m2_start, m2_end)
+            # TRY — HubSpot Contacts
+            ex.submit(get_hubspot_contacts, m1_start, m1_end, "Trial Phase")
+            ex.submit(get_hubspot_contacts, m2_start, m2_end, "Trial Phase")
+            ex.submit(get_hubspot_contacts, m2_start, m2_full_end, "Trial Phase")
             # USE — Kajabi (ALL calls so USE tab is instant)
             ex.submit(get_kajabi_new_customers, m1_start, m1_end)
             ex.submit(get_kajabi_new_customers, m2_start, m2_end)
