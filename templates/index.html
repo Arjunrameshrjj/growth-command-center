@@ -5,22 +5,272 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Growth Command Center</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS - local copy (CDN blocked on this network) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.min.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
-                    colors: { primary: '#3b82f6', secondary: '#64748b' }
-                }
-            }
+    <style>
+        /* Dark mode overrides (Tailwind 2 pre-built does not include dark: variants) */
+        .dark body,
+        .dark .bg-gray-50 {
+            background-color: #0f172a !important;
         }
-    </script>
+
+        .dark .dark\:bg-slate-900 {
+            background-color: #0f172a !important;
+        }
+
+        .dark .dark\:bg-slate-800 {
+            background-color: #1e293b !important;
+        }
+
+        .dark .dark\:bg-slate-700 {
+            background-color: #334155 !important;
+        }
+
+        .dark .dark\:bg-slate-600 {
+            background-color: #475569 !important;
+        }
+
+        .dark .dark\:text-white {
+            color: #fff !important;
+        }
+
+        .dark .dark\:text-gray-100 {
+            color: #f3f4f6 !important;
+        }
+
+        .dark .dark\:text-gray-200 {
+            color: #e5e7eb !important;
+        }
+
+        .dark .dark\:text-gray-300 {
+            color: #d1d5db !important;
+        }
+
+        .dark .dark\:text-gray-400 {
+            color: #9ca3af !important;
+        }
+
+        .dark .dark\:text-gray-500 {
+            color: #6b7280 !important;
+        }
+
+        .dark .dark\:text-gray-600 {
+            color: #4b5563 !important;
+        }
+
+        .dark .dark\:text-blue-400 {
+            color: #60a5fa !important;
+        }
+
+        .dark .dark\:text-green-400 {
+            color: #34d399 !important;
+        }
+
+        .dark .dark\:text-green-500 {
+            color: #10b981 !important;
+        }
+
+        .dark .dark\:text-red-400 {
+            color: #f87171 !important;
+        }
+
+        .dark .dark\:text-indigo-400 {
+            color: #818cf8 !important;
+        }
+
+        .dark .dark\:text-teal-400 {
+            color: #2dd4bf !important;
+        }
+
+        .dark .dark\:text-yellow-400 {
+            color: #facc15 !important;
+        }
+
+        .dark .dark\:border-slate-700 {
+            border-color: #334155 !important;
+        }
+
+        .dark .dark\:border-slate-600 {
+            border-color: #475569 !important;
+        }
+
+        .dark .dark\:border-slate-800 {
+            border-color: #1e293b !important;
+        }
+
+        .dark .dark\:border-blue-400 {
+            border-color: #60a5fa !important;
+        }
+
+        .dark .dark\:border-green-800 {
+            border-color: #166534 !important;
+        }
+
+        .dark .dark\:hover\:bg-slate-700:hover {
+            background-color: #334155 !important;
+        }
+
+        .dark .dark\:hover\:bg-slate-600:hover {
+            background-color: #475569 !important;
+        }
+
+        .dark .dark\:hover\:text-gray-200:hover {
+            color: #e5e7eb !important;
+        }
+
+        .dark .dark\:hover\:border-slate-600:hover {
+            border-color: #475569 !important;
+        }
+
+        .dark .dark\:bg-green-900\/30 {
+            background-color: rgba(20, 83, 45, 0.3) !important;
+        }
+
+        .dark .dark\:bg-green-900 {
+            background-color: #14532d !important;
+        }
+
+        .dark .dark\:bg-red-900 {
+            background-color: #7f1d1d !important;
+        }
+
+        .dark .dark\:bg-yellow-900 {
+            background-color: #78350f !important;
+        }
+
+        .dark .dark\:text-green-300 {
+            color: #86efac !important;
+        }
+
+        .dark .dark\:text-red-300 {
+            color: #fca5a5 !important;
+        }
+
+        .dark .dark\:text-yellow-300 {
+            color: #fde047 !important;
+        }
+
+        .dark .dark\:hidden {
+            display: none !important;
+        }
+
+        .hidden.dark\:block {
+            display: none;
+        }
+
+        .dark .hidden.dark\:block {
+            display: block !important;
+        }
+
+        /* Primary color alias */
+        .text-primary {
+            color: #3b82f6;
+        }
+
+        .bg-primary {
+            background-color: #3b82f6;
+        }
+
+        .border-primary {
+            border-color: #3b82f6;
+        }
+
+        .dark .dark\:text-blue-400.dark\:border-blue-400 {
+            color: #60a5fa;
+            border-color: #60a5fa;
+        }
+
+        /* Tailwind 3 specific utilities not in Tailwind 2 */
+        .bg-primary\/10 {
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+
+        .hover\:border-primary\/30:hover {
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .bg-gray-50\/50 {
+            background-color: rgba(249, 250, 251, 0.5);
+        }
+
+        .dark .dark\:bg-slate-800\/50 {
+            background-color: rgba(30, 41, 59, 0.5) !important;
+        }
+
+        .dark .dark\:bg-slate-700\/50 {
+            background-color: rgba(51, 65, 85, 0.5) !important;
+        }
+    </style>
+    <style>
+        /* Slate color aliases (Tailwind 3 only — map to actual values) */
+        .bg-slate-900 {
+            background-color: #0f172a;
+        }
+
+        .bg-slate-800 {
+            background-color: #1e293b;
+        }
+
+        .bg-slate-700 {
+            background-color: #334155;
+        }
+
+        .bg-slate-600 {
+            background-color: #475569;
+        }
+
+        .border-slate-700 {
+            border-color: #334155;
+        }
+
+        .border-slate-600 {
+            border-color: #475569;
+        }
+
+        .border-slate-800 {
+            border-color: #1e293b;
+        }
+
+        .text-slate-400 {
+            color: #94a3b8;
+        }
+
+        .text-slate-300 {
+            color: #cbd5e1;
+        }
+
+        /* Arbitrary value utilities used in templates */
+        .text-\[10px\] {
+            font-size: 10px;
+            line-height: 1.2;
+        }
+
+        .text-\[11px\] {
+            font-size: 11px;
+            line-height: 1.3;
+        }
+
+        .text-\[9px\] {
+            font-size: 9px;
+            line-height: 1.2;
+        }
+
+        .max-w-\[70\%\] {
+            max-width: 70%;
+        }
+
+        .max-w-\[120px\] {
+            max-width: 120px;
+        }
+
+        .last\:border-0:last-child {
+            border: 0;
+        }
+    </style>
     <style>
         .skeleton {
             background: #e2e8f0;
@@ -72,23 +322,45 @@
                         <i class="fas fa-sun hidden dark:block text-yellow-400"></i>
                     </button>
 
-                    <div class="flex items-center bg-gray-100 dark:bg-slate-700 rounded-lg p-1">
-                        <a href="{{ url_for('index', offset=month_offset + 1) }}"
+                    <div class="flex items-center gap-2 bg-gray-100 dark:bg-slate-700 rounded-lg p-1">
+                        <select id="global-period-select" onchange="changeGlobalPeriod(this.value)"
+                            class="text-xs border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 focus:outline-none font-medium ml-1">
+                            <option value="daily" {% if current_period=='daily' %}selected{% endif %}>Daily</option>
+                            <option value="weekly" {% if current_period=='weekly' %}selected{% endif %}>Weekly</option>
+                            <option value="monthly" {% if current_period=='monthly' %}selected{% endif %}>Monthly
+                            </option>
+                            <option value="quarterly" {% if current_period=='quarterly' %}selected{% endif %}>Quarterly
+                            </option>
+                            <option value="all" {% if current_period=='all' %}selected{% endif %}>All Time</option>
+                            <option value="custom" {% if current_period=='custom' %}selected{% endif %}>Custom Range
+                            </option>
+                        </select>
+                        {% if current_period != 'custom' %}
+                        <div class="h-6 border-l border-gray-300 dark:border-slate-600 mx-1"></div>
+                        <a href="{{ url_for('index', offset=month_offset + 1, period=current_period) }}"
                             class="p-2 hover:bg-white dark:hover:bg-slate-600 rounded-md transition-colors text-gray-500 dark:text-gray-300 hover:text-primary"><i
                                 class="fas fa-chevron-left"></i></a>
-                        <div class="flex flex-col items-center px-4">
+                        <div class="flex flex-col items-center px-2">
                             <span class="font-semibold text-primary dark:text-blue-400">{{ current_month }}</span>
                             <span
                                 class="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase mt-[-2px]">{{
                                 mtd_range }} vs {{ prev_range }}</span>
                         </div>
                         {% if month_offset > 0 %}
-                        <a href="{{ url_for('index', offset=month_offset - 1) }}"
+                        <a href="{{ url_for('index', offset=month_offset - 1, period=current_period) }}"
                             class="p-2 hover:bg-white dark:hover:bg-slate-600 rounded-md transition-colors text-gray-500 dark:text-gray-300 hover:text-primary"><i
                                 class="fas fa-chevron-right"></i></a>
                         {% else %}
                         <span class="p-2 text-gray-300 dark:text-gray-600 cursor-not-allowed"><i
                                 class="fas fa-chevron-right"></i></span>
+                        {% endif %}
+                        {% else %}
+                        <div class="flex flex-col items-center px-4">
+                            <span class="font-semibold text-purple-600 dark:text-purple-400">Custom Compare</span>
+                            <span
+                                class="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase mt-[-2px]">{{
+                                mtd_range }} vs {{ prev_range }}</span>
+                        </div>
                         {% endif %}
                     </div>
                     <div
@@ -107,6 +379,52 @@
             </div>
         </div>
     </nav>
+
+    <!-- Custom Range Modal -->
+    <div id="custom-date-modal"
+        class="hidden fixed inset-0 bg-gray-900/50 z-50 flex items-center justify-center backdrop-blur-sm">
+        <div
+            class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 w-96 border border-gray-100 dark:border-slate-700">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Custom Compare</h3>
+                <button onclick="closeCustomRange()"
+                    class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><i
+                        class="fas fa-times"></i></button>
+            </div>
+
+            <div class="mb-4">
+                <label
+                    class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Range
+                    1 (Current)</label>
+                <div class="flex gap-2">
+                    <input type="date" id="c_s1"
+                        class="w-full text-xs p-2 border border-gray-200 dark:border-slate-600 rounded bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-white"
+                        value="{{ request.args.get('c_start1', '') }}">
+                    <input type="date" id="c_e1"
+                        class="w-full text-xs p-2 border border-gray-200 dark:border-slate-600 rounded bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-white"
+                        value="{{ request.args.get('c_end1', '') }}">
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <label
+                    class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Range
+                    2 (Previous)</label>
+                <div class="flex gap-2">
+                    <input type="date" id="c_s2"
+                        class="w-full text-xs p-2 border border-gray-200 dark:border-slate-600 rounded bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-white"
+                        value="{{ request.args.get('c_start2', '') }}">
+                    <input type="date" id="c_e2"
+                        class="w-full text-xs p-2 border border-gray-200 dark:border-slate-600 rounded bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-white"
+                        value="{{ request.args.get('c_end2', '') }}">
+                </div>
+            </div>
+
+            <button onclick="applyCustomRange()"
+                class="w-full py-2 bg-primary hover:bg-blue-700 text-white rounded-lg font-bold transition-colors">Apply
+                Comparison</button>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -280,8 +598,56 @@
         </div>
 
 
-        <div id="TRY" class="tab-content hidden">
-            <div class="p-8 text-center text-gray-500 dark:text-gray-400">HubSpot Lead Integration Pending</div>
+        <!-- Tab Content: TRY -->
+        <div id="TRY" class="tab-content hidden fade-in">
+            <div id="try-skeleton" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-6 h-40 skeleton"></div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-6 h-40 skeleton"></div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-6 h-40 skeleton"></div>
+            </div>
+            <div id="try-content" class="content-loaded">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 relative overflow-hidden"
+                        style="border-left: 4px solid #3b82f6;">
+                        <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">
+                            Admissions (Trial Phase)</p>
+                        <h3 class="text-4xl font-extrabold text-gray-900 dark:text-white mb-2" id="t-m1-val">...</h3>
+                        <div id="t-delta-pct" class="text-xs font-medium">...</div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 relative overflow-hidden"
+                        style="border-left: 4px solid #3b82f6;">
+                        <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">
+                            Previous MTD (Trial Phase)</p>
+                        <h3 class="text-4xl font-extrabold text-gray-900 dark:text-white mb-2" id="t-m2-val">...</h3>
+                        <div id="t-delta-count" class="text-xs font-medium">...</div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 relative overflow-hidden"
+                        style="border-left: 4px solid #8b5cf6;">
+                        <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">
+                            Trend Comparison</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">Daily cumulative performance vs last
+                            month.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+                    <!-- Worm Graph -->
+                    <div
+                        class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
+                        <h4 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-4">
+                            Cumulative Try Growth (Worm Graph)</h4>
+                        <div id="tryWormChart" class="w-full h-80"></div>
+                    </div>
+
+                    <!-- Course Breakdown -->
+                    <div
+                        class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
+                        <h4 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-4">
+                            Course Breakdown</h4>
+                        <div id="try-course-table" class="overflow-y-auto max-h-80"></div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Tab Content: BUY -->
@@ -475,13 +841,130 @@
             </div>
         </div>
 
-        <div id="ADVOCATE" class="tab-content hidden">
-            <div class="p-8 text-center text-gray-500 dark:text-gray-400">Advocate Phase Pending</div>
+        <div id="ADVOCATE" class="tab-content hidden fade-in">
+            <div id="advocate-skeleton" class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-6 h-40 skeleton"></div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-6 h-40 skeleton"></div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-6 h-40 skeleton"></div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-6 h-40 skeleton"></div>
+            </div>
+            <div id="advocate-content" class="content-loaded">
+                <!-- KPI Cards -->
+                <div id="advocate-kpi-grid" class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 relative overflow-hidden"
+                        style="border-left: 4px solid #ec4899;">
+                        <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">
+                            Total Advocates</p>
+                        <h3 class="text-3xl font-extrabold text-gray-900 dark:text-white mb-1" id="a-total">...</h3>
+                        <div id="a-delta-badge" class="text-xs font-medium">...</div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 relative overflow-hidden"
+                        style="border-left: 4px solid #ec4899;">
+                        <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">
+                            Testimonials Given</p>
+                        <h3 class="text-3xl font-extrabold text-green-600 dark:text-green-400 mb-1"
+                            id="a-testimonials-given">...</h3>
+                        <div class="text-xs font-medium text-gray-500 dark:text-gray-400" id="a-testimonial-rate">...
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 relative overflow-hidden"
+                        style="border-left: 4px solid #f59e0b;">
+                        <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">
+                            Testimonials Pending</p>
+                        <h3 class="text-3xl font-extrabold text-amber-600 dark:text-amber-400 mb-1"
+                            id="a-testimonials-not">...</h3>
+                    </div>
+                    <div
+                        class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
+                        <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">By
+                            Branch</p>
+                        <div id="a-branch-counts" class="space-y-1"></div>
+                    </div>
+                </div>
+
+                <!-- Advocacy Level + Course Breakdown -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div
+                        class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
+                        <h4 class="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-4">
+                            Advocacy Level Breakdown</h4>
+                        <div id="a-level-breakdown" class="space-y-3"></div>
+                    </div>
+                    <div
+                        class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
+                        <h4 class="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-4">
+                            Course Breakdown</h4>
+                        <div id="a-course-breakdown" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- Filter Controls -->
+                <div
+                    class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
+                    <div class="flex flex-wrap justify-between items-center mb-4 gap-3">
+                        <h4 class="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Advocate
+                            Records</h4>
+                        <div class="flex gap-2 flex-wrap">
+                            <select id="a-filter-month"
+                                class="text-xs border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 focus:outline-none">
+                                <option value="">All Months</option>
+                            </select>
+                            <select id="a-filter-branch"
+                                class="text-xs border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 focus:outline-none">
+                                <option value="">All Branches</option>
+                                <option value="Mavelikkara">Mavelikkara</option>
+                                <option value="Thiruvalla">Thiruvalla</option>
+                                <option value="Online">Online</option>
+                            </select>
+                            <select id="a-filter-testimonial"
+                                class="text-xs border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 focus:outline-none">
+                                <option value="">All Testimonials</option>
+                                <option value="GIVEN">Given</option>
+                                <option value="NOT">Not Given</option>
+                            </select>
+                            <input type="text" id="a-search" placeholder="Search name..."
+                                class="text-xs border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-1 bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 focus:outline-none w-40">
+                        </div>
+                    </div>
+                    <div id="a-table" class="overflow-x-auto max-h-[500px] overflow-y-auto"></div>
+                </div>
+            </div>
         </div>
     </main>
 
     <script>
         const offset = parseInt("{{ month_offset }}") || 0;
+        const currentPeriod = "{{ current_period }}";
+        const cStart1 = "{{ request.args.get('c_start1', '') }}";
+        const cEnd1 = "{{ request.args.get('c_end1', '') }}";
+        const cStart2 = "{{ request.args.get('c_start2', '') }}";
+        const cEnd2 = "{{ request.args.get('c_end2', '') }}";
+
+        const customParams = currentPeriod === 'custom' && cStart1
+            ? `&c_start1=${cStart1}&c_end1=${cEnd1}&c_start2=${cStart2}&c_end2=${cEnd2}`
+            : '';
+
+        function changeGlobalPeriod(period) {
+            if (period === 'custom') {
+                document.getElementById('custom-date-modal').classList.remove('hidden');
+                document.getElementById('global-period-select').value = currentPeriod;
+                return;
+            }
+            window.location.href = `/?offset=${offset}&period=${period}`;
+        }
+
+        function applyCustomRange() {
+            const s1 = document.getElementById('c_s1').value;
+            const e1 = document.getElementById('c_e1').value;
+            const s2 = document.getElementById('c_s2').value;
+            const e2 = document.getElementById('c_e2').value;
+            if (!s1 || !e1 || !s2 || !e2) { alert('Please fill all dates.'); return; }
+            window.location.href = `/?offset=0&period=custom&c_start1=${s1}&c_end1=${e1}&c_start2=${s2}&c_end2=${e2}`;
+        }
+
+        function closeCustomRange() {
+            document.getElementById('custom-date-modal').classList.add('hidden');
+        }
 
         // Dark Mode Logic
         function toggleDarkMode() {
@@ -491,6 +974,7 @@
 
             // Re-render charts to update colors
             if (window.lastDiscoverData) renderDiscoverCharts(window.lastDiscoverData);
+            if (window.lastTryData) renderTryCharts(window.lastTryData);
             if (window.lastBuyData) renderBuyCharts(window.lastBuyData);
             if (window.lastUseData) renderUseCharts(window.lastUseData);
         }
@@ -523,9 +1007,11 @@
 
             // Trigger fetch
             if (tabName === 'DISCOVER') fetchDiscover();
+            if (tabName === 'TRY') fetchTry();
             if (tabName === 'BUY') fetchBuy();
             if (tabName === 'USE') fetchUse();
             if (tabName === 'RENEW') fetchRenew();
+            if (tabName === 'ADVOCATE') fetchAdvocate();
         }
 
         // Generic Helper for Worm Chart
@@ -605,7 +1091,7 @@
 
         async function fetchDiscover() {
             if (window.discoverLoaded) return;
-            const res = await fetch(`/api/discover?offset=${offset}`);
+            const res = await fetch(`/api/discover?offset=${offset}&period=${currentPeriod}${customParams}`);
             const data = await res.json();
 
             document.getElementById('d-m1-val').innerText = data.m1_val;
@@ -694,7 +1180,7 @@
         async function fetchContentCalendar() {
             if (window.ccLoaded) return;
             try {
-                const res = await fetch(`/api/content-calendar?offset=${offset}`);
+                const res = await fetch(`/api/content-calendar?offset=${offset}&period=${currentPeriod}${customParams}`);
                 const data = await res.json();
                 _ccAllRows = data.rows || [];
 
@@ -760,9 +1246,55 @@
         }
 
 
+        function renderTryCharts(data) {
+            window.lastTryData = data;
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#f3f4f6' : '#1f2937';
+            const gridColor = isDark ? '#334155' : '#f3f4f6';
+            renderWormChart('tryWormChart', data.worm_m1, data.worm_m2, isDark, textColor, gridColor, '#3b82f6'); // Blue for Try
+        }
+
+        async function fetchTry() {
+            if (window.tryLoaded) return;
+            const res = await fetch(`/api/try?offset=${offset}&period=${currentPeriod}${customParams}`);
+            const data = await res.json();
+
+            document.getElementById('t-m1-val').innerText = data.m1_val;
+            document.getElementById('t-m2-val').innerText = data.m2_val;
+
+            const dp = document.getElementById('t-delta-pct');
+            dp.innerText = `${data.delta_pct >= 0 ? '+' : ''}${data.delta_pct}% vs Last Month`;
+            dp.className = `text-xs font-medium ${data.delta_pct >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`;
+
+            const dc = document.getElementById('t-delta-count');
+            dc.innerText = `${data.delta} vs Last Month`;
+            dc.className = `text-xs font-medium ${parseInt(data.delta) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`;
+
+            // Course table (reuse logic from USE tab)
+            const renderCourseTable = (items) => {
+                if (!items || items.length === 0) return '<div class="text-gray-400 text-sm p-4">No data</div>';
+                let html = '<table class="min-w-full"><thead><tr class="text-xs font-medium text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-slate-700"><th class="pb-3 text-left">COURSE</th><th class="pb-3 text-right">COUNT</th></tr></thead><tbody>';
+                const maxVal = Math.max(...items.map(i => i.count));
+                items.forEach(i => {
+                    const width = maxVal > 0 ? (i.count / maxVal * 100) : 0;
+                    html += `<tr class="border-b border-gray-50 dark:border-slate-800 last:border-0 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"><td class="py-3 text-gray-700 dark:text-gray-300 font-medium text-xs truncate max-w-[120px]" title="${i.name}">${i.name}</td><td class="py-3 text-right"><div class="flex items-center justify-end gap-2"><span class="font-bold text-blue-600 dark:text-blue-400 text-xs">${i.count}</span><div class="w-12 h-1 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-blue-500 rounded-full" style="width: ${width}%"></div></div></div></td></tr>`;
+                });
+                return html + '</tbody></table>';
+            };
+            document.getElementById('try-course-table').innerHTML = renderCourseTable(data.course_breakdown);
+
+            document.getElementById('try-skeleton').style.display = 'none';
+            document.getElementById('try-content').style.display = 'block';
+            requestAnimationFrame(() => {
+                renderTryCharts(data);
+            });
+            window.tryLoaded = true;
+        }
+
+
         async function fetchBuy() {
             if (window.buyLoaded) return;
-            const res = await fetch(`/api/buy?offset=${offset}`);
+            const res = await fetch(`/api/buy?offset=${offset}&period=${currentPeriod}${customParams}`);
             const data = await res.json();
 
             document.getElementById('b-m1-count').innerText = data.m1_count;
@@ -789,7 +1321,7 @@
 
         async function fetchUse() {
             if (window.useLoaded) return;
-            const res = await fetch(`/api/use?offset=${offset}`);
+            const res = await fetch(`/api/use?offset=${offset}&period=${currentPeriod}${customParams}`);
             const data = await res.json();
 
             document.getElementById('u-total').innerText = data.total_customers;
@@ -829,7 +1361,7 @@
 
         async function fetchRenew() {
             if (window.renewLoaded) return;
-            const res = await fetch(`/api/renew?offset=${offset}`);
+            const res = await fetch(`/api/renew?offset=${offset}&period=${currentPeriod}${customParams}`);
             const data = await res.json();
 
             document.getElementById('r-m1-count').innerText = data.m1_count;
@@ -935,6 +1467,210 @@
             window.renewLoaded = true;
         }
 
+        // ---- ADVOCATE ----
+        let _advocateAllRows = [];
+        let _advocateMonthGroups = [];
+
+        function renderAdvocateTable() {
+            const monthFilter = document.getElementById('a-filter-month').value;
+            const branchFilter = document.getElementById('a-filter-branch').value;
+            const testimonialFilter = document.getElementById('a-filter-testimonial').value;
+            const searchVal = (document.getElementById('a-search').value || '').trim().toLowerCase();
+
+            // Apply filters to month_groups
+            const el = document.getElementById('a-table');
+            let html = '';
+            let totalShown = 0;
+
+            const groupsToRender = monthFilter
+                ? _advocateMonthGroups.filter(g => g.month === monthFilter)
+                : _advocateMonthGroups;
+
+            groupsToRender.forEach(group => {
+                const filtered = group.rows.filter(r => {
+                    if (branchFilter && r.Branch !== branchFilter) return false;
+                    const t = (r['TESTIMONIALS (GIVEN/NOT)'] || '').toUpperCase();
+                    if (testimonialFilter === 'GIVEN' && (t.indexOf('GIVEN') === -1 || t.indexOf('NOT') !== -1)) return false;
+                    if (testimonialFilter === 'NOT' && t.indexOf('NOT') === -1 && t.indexOf('GIVEN') !== -1) return false;
+                    if (searchVal && (r.NAME || '').toLowerCase().indexOf(searchVal) === -1) return false;
+                    return true;
+                });
+
+                if (filtered.length === 0) return;
+                totalShown += filtered.length;
+
+                // Month header
+                html += `<div class="sticky top-0 z-10 bg-pink-50 dark:bg-pink-900/20 border-l-4 border-pink-500 px-4 py-2 mb-1 mt-3 rounded-r-lg flex justify-between items-center">
+                    <span class="text-sm font-black text-pink-700 dark:text-pink-300 tracking-wide">📅 ${group.month}</span>
+                    <span class="text-xs font-bold text-pink-500 dark:text-pink-400 bg-pink-100 dark:bg-pink-900/40 px-2 py-0.5 rounded-full">${filtered.length} advocates</span>
+                </div>`;
+
+                html += '<table class="min-w-full mb-2"><thead><tr class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-slate-700"><th class="pb-2 text-left pl-2">Branch</th><th class="pb-2 text-left">Name</th><th class="pb-2 text-left">Phone</th><th class="pb-2 text-left">Course</th><th class="pb-2 text-left">Pass Out Date</th><th class="pb-2 text-center">Testimonial</th><th class="pb-2 text-center">Level</th><th class="pb-2 text-left">Remark</th></tr></thead><tbody>';
+
+                filtered.forEach(r => {
+                    const tStatus = (r['TESTIMONIALS (GIVEN/NOT)'] || '').toUpperCase();
+                    const isGiven = tStatus.indexOf('GIVEN') !== -1 && tStatus.indexOf('NOT') === -1;
+                    const tCls = isGiven ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+                    const branchCls = r.Branch === 'Mavelikkara' ? 'text-pink-600 dark:text-pink-400' : (r.Branch === 'Thiruvalla' ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400');
+
+                    // Format pass out date nicely
+                    let dateDisplay = r['PASS OUT DATE'] || '—';
+                    if (r._passout_date_obj) {
+                        try {
+                            const dt = new Date(r._passout_date_obj);
+                            dateDisplay = dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                        } catch (e) { }
+                    }
+
+                    html += `<tr class="border-b border-gray-50 dark:border-slate-800 last:border-0 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+                        <td class="py-2 pl-2 text-xs font-semibold ${branchCls}">${r.Branch || '—'}</td>
+                        <td class="py-2 text-sm text-gray-700 dark:text-gray-300 font-semibold">${r.NAME || '—'}</td>
+                        <td class="py-2 text-xs text-gray-500 dark:text-gray-400">${r['PHONE NUMBER'] || '—'}</td>
+                        <td class="py-2 text-xs text-gray-600 dark:text-gray-300">${r.COURSE || '—'}</td>
+                        <td class="py-2 text-xs font-medium text-gray-700 dark:text-gray-300">${dateDisplay}</td>
+                        <td class="py-2 text-center"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${tCls}">${isGiven ? 'Given' : 'Pending'}</span></td>
+                        <td class="py-2 text-center text-xs font-bold text-pink-600 dark:text-pink-400">${r['ADVOCACY LEVEL'] || '—'}</td>
+                        <td class="py-2 text-xs text-gray-400 max-w-[120px] truncate">${r.REMARK || '—'}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+            });
+
+            if (totalShown === 0) {
+                el.innerHTML = '<div class="flex h-40 items-center justify-center text-gray-400 text-sm">No advocates match your filters.</div>';
+            } else {
+                el.innerHTML = html;
+            }
+        }
+
+        let _advocateRawData = null;
+
+        function renderAdvocateKPIs(period) {
+            if (!_advocateRawData) return;
+            const Object = window.Object;
+            const data = _advocateRawData;
+
+            // Determine labels based on period
+            let label = "This Period", prevLabel = "Previous Period";
+            if (period === 'daily') {
+                label = 'Today'; prevLabel = 'Yesterday';
+            } else if (period === 'weekly') {
+                label = 'This Week'; prevLabel = 'Last Week';
+            } else if (period === 'monthly') {
+                label = 'This Month'; prevLabel = 'Last Month';
+            } else if (period === 'all') {
+                label = 'All Time'; prevLabel = '';
+            }
+
+            // Calculations
+            const currTotal = data.total || 0;
+            const prevTotal = data.prev_total || 0;
+            const delta = currTotal - prevTotal;
+            const isUp = delta >= 0;
+            const pctDelta = prevTotal > 0 ? Math.round(Math.abs(delta) / prevTotal * 100) : (currTotal > 0 ? 100 : 0);
+
+            const testimonials_given = data.testimonials_given || 0;
+            const testimonials_not = data.testimonials_not || 0;
+            const prev_testimonials_given = data.prev_testimonials_given || 0;
+            const rate = currTotal > 0 ? Math.round(testimonials_given / currTotal * 100) : 0;
+
+            // Generate Branch HTML
+            const branchCounts = data.branch_counts || [];
+            const branchHtml = branchCounts.map(b => {
+                const colors = { 'Mavelikkara': 'text-pink-600 dark:text-pink-400', 'Thiruvalla': 'text-purple-600 dark:text-purple-400', 'Online': 'text-blue-600 dark:text-blue-400' };
+                const cls = colors[b.name] || 'text-gray-600 dark:text-gray-400';
+                return `<div class="flex justify-between items-center mb-1"><span class="text-xs font-medium ${cls}">${b.name}</span><span class="text-sm font-bold text-gray-800 dark:text-white">${b.count}</span></div>`;
+            }).join('');
+
+            // Render KPI cards
+            const grid = document.getElementById('advocate-kpi-grid');
+            grid.className = 'grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8';
+            grid.innerHTML = `
+                <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 relative overflow-hidden" style="border-left: 4px solid #ec4899;">
+                    <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Advocates (${label})</p>
+                    <h3 class="text-3xl font-extrabold text-gray-900 dark:text-white mb-1">${currTotal}</h3>
+                    ${prevLabel && prevTotal !== undefined ? `<span class="text-xs font-medium ${isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">${isUp ? '▲' : '▼'} ${Math.abs(delta)} (${isUp ? '+' : ''}${pctDelta}%)</span>` : ''}
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+                    <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">${prevLabel || 'Prev'} Advocates</p>
+                    <h3 class="text-3xl font-extrabold text-gray-900 dark:text-white mb-1">${prevTotal}</h3>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 relative overflow-hidden" style="border-left: 4px solid #10b981;">
+                    <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Testimonials Given</p>
+                    <h3 class="text-3xl font-extrabold text-green-600 dark:text-green-400 mb-1">${testimonials_given}</h3>
+                    <div class="text-xs font-medium text-gray-500 dark:text-gray-400">${rate}% testimonial rate</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+                    <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">${prevLabel || 'Prev'} Testimonials</p>
+                    <h3 class="text-3xl font-extrabold text-gray-900 dark:text-white mb-1">${prev_testimonials_given}</h3>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 relative overflow-hidden" style="border-left: 4px solid #f59e0b;">
+                    <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Testimonials Pending</p>
+                    <h3 class="text-3xl font-extrabold text-amber-600 dark:text-amber-400 mb-1">${testimonials_not}</h3>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+                    <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">By Branch</p>
+                    <div class="space-y-1">${branchHtml || '<span class="text-xs text-gray-400">No data</span>'}</div>
+                </div>
+            `;
+
+            // Update advocacy level breakdown
+            const levels = data.advocacy_levels || [];
+            const maxLevel = levels.length ? Math.max(...levels.map(l => l.count)) : 1;
+            document.getElementById('a-level-breakdown').innerHTML = levels.map(l => {
+                const pct = Math.round(l.count / maxLevel * 100);
+                return `<div><div class="flex justify-between items-center mb-1"><span class="text-xs font-medium text-gray-700 dark:text-gray-300">${l.level}</span><span class="text-xs font-bold text-pink-600 dark:text-pink-400">${l.count}</span></div><div class="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2"><div class="bg-pink-500 h-2 rounded-full" style="width:${pct}%"></div></div></div>`;
+            }).join('') || '<div class="text-sm text-gray-400 py-4 text-center">No data</div>';
+
+            // Update course breakdown
+            const courses = data.course_breakdown || [];
+            const maxCourse = courses.length ? Math.max(...courses.map(c => c.count)) : 1;
+            document.getElementById('a-course-breakdown').innerHTML = courses.map(c => {
+                const pct = Math.round(c.count / maxCourse * 100);
+                return `<div><div class="flex justify-between items-center mb-1"><span class="text-xs font-medium text-gray-700 dark:text-gray-300 truncate max-w-[70%]">${c.name}</span><span class="text-xs font-bold text-pink-600 dark:text-pink-400">${c.count}</span></div><div class="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2"><div class="bg-purple-500 h-2 rounded-full" style="width:${pct}%"></div></div></div>`;
+            }).join('') || '<div class="text-sm text-gray-400 py-4 text-center">No data</div>';
+        }
+
+        async function fetchAdvocate() {
+            if (window.advocateLoaded) return;
+            try {
+                const res = await fetch(`/api/advocate?offset=${offset}&period=${currentPeriod}${customParams}`);
+                const data = await res.json();
+                _advocateRawData = data;
+                _advocateAllRows = data.all_rows || data.rows || [];
+                _advocateMonthGroups = data.month_groups || [];
+
+                // Render with global period as default
+                renderAdvocateKPIs(currentPeriod);
+
+                // Populate month filter dropdown
+                const monthSelect = document.getElementById('a-filter-month');
+                monthSelect.innerHTML = '<option value="">All Months</option>';
+                _advocateMonthGroups.forEach(g => {
+                    const opt = document.createElement('option');
+                    opt.value = g.month;
+                    opt.textContent = `${g.month} (${g.count})`;
+                    monthSelect.appendChild(opt);
+                });
+
+                // Render table
+                renderAdvocateTable();
+
+                // Wire filters
+                document.getElementById('a-filter-month').addEventListener('change', renderAdvocateTable);
+                document.getElementById('a-filter-branch').addEventListener('change', renderAdvocateTable);
+                document.getElementById('a-filter-testimonial').addEventListener('change', renderAdvocateTable);
+                document.getElementById('a-search').addEventListener('input', renderAdvocateTable);
+
+                document.getElementById('advocate-skeleton').style.display = 'none';
+                document.getElementById('advocate-content').style.display = 'block';
+                window.advocateLoaded = true;
+            } catch (e) {
+                console.error('Advocate fetch error:', e);
+                document.getElementById('advocate-skeleton').innerHTML = '<div class="col-span-4 text-center text-red-500 py-8">Failed to load advocate data</div>';
+            }
+        }
+
         function updateLastUpdatedTime() {
             const now = new Date();
             const ts = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -961,13 +1697,15 @@
 
                 // 2. Reset all loaded flags
                 window.discoverLoaded = false;
+                window.tryLoaded = false;
                 window.buyLoaded = false;
                 window.useLoaded = false;
                 window.renewLoaded = false;
+                window.advocateLoaded = false;
                 window.ccLoaded = false;
 
                 // 3. Show skeletons, hide content
-                ['discover', 'buy', 'use', 'renew'].forEach(tab => {
+                ['discover', 'try', 'buy', 'use', 'renew', 'advocate'].forEach(tab => {
                     const skel = document.getElementById(tab + '-skeleton');
                     const cont = document.getElementById(tab + '-content');
                     if (skel) skel.style.display = '';
@@ -977,9 +1715,11 @@
                 // 4. Re-fetch all tabs in parallel
                 await Promise.allSettled([
                     fetchDiscover(),
+                    fetchTry(),
                     fetchBuy(),
                     fetchUse(),
                     fetchRenew(),
+                    fetchAdvocate(),
                 ]);
 
                 // 5. Show updated timestamp
